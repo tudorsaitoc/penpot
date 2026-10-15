@@ -99,9 +99,9 @@
                        {::quotes/id ::quotes/snapshots-per-team}))
 
     (db/tx-run! cfg fsnap/create! file
-                {:label label
-                 :profile-id profile-id
-                 :created-by "user"})))
+                (cond-> {:profile-id profile-id
+                         :created-by "user"}
+                  (some? label) (assoc :label label)))))
 
 (def ^:private schema:restore-file-snapshot
   [:map {:title "restore-file-snapshot"}

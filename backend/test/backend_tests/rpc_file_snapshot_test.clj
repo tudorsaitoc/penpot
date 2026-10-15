@@ -220,3 +220,42 @@
         ;; (th/print-result! out)
         (t/is (nil? (:error out)))
         (t/is (true? (:result out)))))))
+
+(t/deftest snapshots-without-label-generate-name-and-restore-content
+  (let [profile (th/create-profile* 1 {:is-active true})
+        file (th/create-file* 1 {:profile-id (:id profile)
+                                 :project-id (:default-project-id profile)})
+        page-id (get-in file [:data :pages 0])
+        original-name (get-in file [:data :pages-index page-id :name])
+        created (th/command! {::th/type :create-file-snapshot
+                              ::rpc/profile-id (:id profile)
+                              :file-id (:id file)})
+        snapshot (:result created)]
+    (t/is (nil? (:error created)))
+    (t/is (uuid? (:id snapshot)))
+    (t/is (string? (:label snapshot)))
+    (t/is (not-empty (:label snapshot)))
+    (t/is (= 0 (:revn snapshot)))
+    (update-file! :profile-id (:id profile) :file-id (:id file)
+                  :changes [{:type :mod-page :id page-id :name "After snapshot"}])
+    (let [restored (th/command! {::th/type :restore-file-snapshot
+                                 ::rpc/profile-id (:id profile)
+                                 :file-id (:id file)
+                                 :id (:id snapshot)})
+          loaded (th/command! {::th/type :get-file
+                               ::rpc/profile-id (:id profile)
+                               :id (:id file)})]
+      (t/is (nil? (:error restored)))
+      (t/is (nil? (:error loaded)))
+      (t/is (= 2 (:revn (:result loaded))))
+      (t/is (not= 0 (:vern (:result loaded))))
+      (t/is (= original-name (get-in loaded [:result :data :pages-index page-id :name])))))
+  (let [profile (th/create-profile* 2 {:is-active true})
+        file (th/create-file* 2 {:profile-id (:id profile)
+                                 :project-id (:default-project-id profile)})
+        invalid (th/command! {::th/type :create-file-snapshot
+                              ::rpc/profile-id (:id profile)
+                              :file-id (:id file)
+                              :label nil})]
+    ;; Omission generates a name; explicit null remains invalid at the RPC boundary.
+    (t/is (= :params-validation (th/ex-code (:error invalid))))))
