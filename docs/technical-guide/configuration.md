@@ -161,6 +161,19 @@ __Since version 1.5.0__
 Allows integrating with a generic authentication provider that implements the OIDC
 protocol (usually used for SSO).
 
+When discovery advertises `S256` in `code_challenge_methods_supported`, Penpot
+uses PKCE for login, including organization SSO. This supports providers such
+as Supabase OAuth without a separate PKCE setting. Configure the discovery base
+URI rather than supplying all three authorization, token and userinfo endpoint
+overrides, which bypass discovery.
+
+Each login generates a fresh verifier. Penpot keeps it in the existing
+authenticated-encrypted state token, sends only its SHA-256 challenge in the
+authorization URL, and sends the verifier when exchanging the code. State keeps
+its four-hour expiry and issuer validation. Authorization codes remain single-use
+as enforced by the provider; state itself is not a server-side single-use token.
+Providers that do not advertise `S256` keep the existing non-PKCE flow.
+
 All the other options are backend only:
 
 ```bash

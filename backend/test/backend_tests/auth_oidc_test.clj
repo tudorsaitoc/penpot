@@ -10,6 +10,7 @@
    [app.common.data :as d]
    [app.common.exceptions :as ex]
    [app.common.time :as ct]
+   [app.common.uri :as u]
    [app.config :as cf]
    [app.http.session :as session]
    [app.setup :as-alias setup]
@@ -227,9 +228,11 @@
       (with-mocks [http-mock {:target 'app.http.client/req
                               :return {:status 200
                                        :body "{\"access_token\":\"at\",\"id_token\":\"it\",\"token_type\":\"Bearer\"}"}}]
-        (let [result (#'oidc/fetch-access-token cfg provider code)]
+        (let [result (#'oidc/fetch-access-token cfg provider code {})]
           (t/is (:called? @http-mock))
           (t/is (= 1 (:call-count @http-mock)))
+          (t/is (not (contains? (u/query-string->map (:body (second (:call-args @http-mock))))
+                               :code_verifier)))
           (t/is (= "at" (:token/access result)))
           (t/is (= "it" (:token/id result)))
           (t/is (= "Bearer" (:token/type result))))))))
@@ -243,7 +246,7 @@
           code     "auth-code-123"]
       (with-mocks [http-mock {:target 'app.http.client/req
                               :return {:status 400 :body "{\"error\":\"invalid_grant\"}"}}]
-        (let [e (try (#'oidc/fetch-access-token cfg provider code) (catch Throwable t t))]
+        (let [e (try (#'oidc/fetch-access-token cfg provider code {}) (catch Throwable t t))]
           (t/is (instance? clojure.lang.ExceptionInfo e))
           (t/is (= :unable-to-fetch-access-token (:code (ex-data e)))))))))
 
@@ -723,3 +726,114 @@
         (t/is (ex/error? e))
         (t/is (= :validation (:type (ex-data e))))
         (t/is (= :invalid-sso-config (:code (ex-data e))))))))
+
+;; RFC 7636 section 4.6 example, independent of our random verifier generation.
+(t/deftest pkce-authorization-uses-s256
+  (binding [cf/config {:public-uri "http://localhost:3449"}]
+    (let [uri (oidc/build-auth-redirect-uri
+               {:auth-uri "https://issuer.example.com/authorize" :client-id "penpot"}
+               "encrypted-state"
+               "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
+          query (u/query-string->map (:query (u/uri uri)))]
+      (t/is (= "S256" (:code_challenge_method query)))
+      (t/is (= "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" (:code_challenge query)))
+      (t/is (= "encrypted-state" (:state query)))
+      (t/is (not (contains? query :code_verifier))))))
+
+(t/deftest discovery-enables-only-advertised-s256
+  (doseq [[metadata enabled?]
+          [["\"code_challenge_methods_supported\":[\"S256\"]" true]
+           ["\"code_challenge_methods_supported\":[\"plain\"]" false]
+           ["\"scopes_supported\":[\"openid\"]" false]]]
+    (with-mocks [http-mock {:target 'app.http.client/req
+                            :return {:status 200
+                                     :body (str "{\"authorization_endpoint\":\"https://project.supabase.co/auth/v1/oauth/authorize\","
+                                                "\"token_endpoint\":\"https://project.supabase.co/auth/v1/oauth/token\","
+                                                metadata "}")}}]
+      (let [provider (#'oidc/discover-oidc-config
+                      {} {:base-uri "https://project.supabase.co/auth/v1/"})]
+        (t/is (= enabled? (:pkce? provider)))))))
+
+(def ^:private supabase-provider
+  {:id "oidc"
+   :type "oidc"
+   :client-id "penpot"
+   :client-secret "test-secret"
+   :auth-uri "https://project.supabase.co/auth/v1/oauth/authorize"
+   :token-uri "https://project.supabase.co/auth/v1/oauth/token"
+   :scopes #{"openid" "email" "profile"}
+   :pkce? true})
+
+(defn- start-oidc-login
+  [provider]
+  (with-redefs [app.auth.oidc/resolve-provider (constantly provider)]
+    (-> (#'oidc/auth-handler base-cfg {:params {}})
+        ::yres/body :redirect-uri u/uri :query u/query-string->map)))
+
+(t/deftest supabase-pkce-state-round-trips-through-callback
+  (binding [cf/config {:public-uri "http://localhost:3449"}]
+    (let [query    (start-oidc-login supabase-provider)
+          state    (tokens/verify base-cfg {:token (:state query) :iss "oidc"})
+          verifier (:code-verifier state)
+          exchange (atom nil)]
+      (t/is (re-matches #"[A-Za-z0-9_-]{43}" verifier))
+      (t/is (= "S256" (:code_challenge_method query)))
+      (t/is (not (.contains (:state query) verifier)))
+      (t/is (not= verifier (:code_challenge query)))
+      (t/is (ct/is-before? (ct/now) (:exp state)))
+      (t/is (not= verifier
+                  (:code-verifier (tokens/verify base-cfg
+                                                {:token (:state (start-oidc-login supabase-provider))
+                                                 :iss "oidc"}))))
+      (with-redefs [app.auth.oidc/resolve-provider (constantly supabase-provider)
+                    app.http.client/req (fn [_ request _]
+                                          (reset! exchange request)
+                                          {:status 200 :body "{\"access_token\":\"at\",\"token_type\":\"Bearer\"}"})
+                    app.auth.oidc/get-id-token-claims (constantly mock-claims)
+                    app.auth.oidc/get-profile (constantly (assoc test-profile :is-blocked true))]
+        (#'oidc/callback-handler base-cfg (default-request base-cfg :state (:state query)))
+        (let [form (u/query-string->map (:body @exchange))]
+          (t/is (= (:token-uri supabase-provider) (:uri @exchange)))
+          (t/is (= verifier (:code_verifier form)))
+          (t/is (= "test-code" (:code form)))
+          (t/is (= "authorization_code" (:grant_type form)))
+          (t/is (= "penpot" (:client_id form)))
+          (t/is (= "test-secret" (:client_secret form)))
+          (t/is (= "http://localhost:3449/api/auth/oidc/callback" (:redirect_uri form))))))))
+
+(t/deftest non-pkce-login-preserves-existing-authorization
+  (binding [cf/config {:public-uri "http://localhost:3449"}]
+    (let [query (start-oidc-login (dissoc supabase-provider :pkce?))
+          state (tokens/verify base-cfg {:token (:state query) :iss "oidc"})]
+      (t/is (= "penpot" (:client_id query)))
+      (t/is (= "code" (:response_type query)))
+      (t/is (not (contains? query :code_challenge)))
+      (t/is (not (contains? query :code_challenge_method)))
+      (t/is (not (contains? state :code-verifier))))))
+
+(t/deftest pkce-invalid-state-never-reaches-token-endpoint
+  (binding [cf/config {:public-uri "http://localhost:3449"}]
+    (let [query (start-oidc-login supabase-provider)
+          claims (tokens/verify base-cfg {:token (:state query) :iss "oidc"})
+          requests (atom 0)]
+      (with-redefs [app.http.client/req (fn [& _] (swap! requests inc))]
+        (doseq [state [(str "invalid." (:state query))
+                       (tokens/generate base-cfg (assoc claims :exp (ct/in-past "1h")))
+                       (tokens/generate base-cfg (assoc claims :iss "other"))]]
+          (let [response (#'oidc/callback-handler base-cfg (default-request base-cfg :state state))]
+            (t/is (.contains (redirect-location response) "error=unable-to-auth"))))
+        (t/is (zero? @requests))))))
+
+(t/deftest organization-sso-keeps-pkce-in-encrypted-state
+  (binding [cf/config {:public-uri "http://localhost:3449"}]
+    (let [uri (oidc/build-organization-sso-auth-redirect-uri
+               base-cfg {:issuer "https://project.supabase.co/auth/v1/"}
+               :provider supabase-provider
+               :organization-id test-organization-id
+               :dest-url "https://penpot.example.com/")
+          query (u/query-string->map (:query (u/uri uri)))
+          state (tokens/verify base-cfg {:token (:state query) :iss "oidc"})]
+      (t/is (= "S256" (:code_challenge_method query)))
+      (t/is (re-matches #"[A-Za-z0-9_-]{43}" (:code-verifier state)))
+      (t/is (= test-organization-id (:organization-id state)))
+      (t/is (= "https://penpot.example.com/" (:dest-url state))))))
