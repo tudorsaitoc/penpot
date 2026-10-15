@@ -17,7 +17,7 @@
    [promesa.core :as p]))
 
 (defn render
-  [{:keys [file-id page-id share-id token scale type objects] :as params} on-object]
+  [{:keys [file-id page-id share-id token scale type objects revn vern] :as params} on-object]
   (letfn [(prepare-options [uri]
             #js {:screen #js {:width bw/default-viewport-width
                               :height bw/default-viewport-height}
@@ -33,6 +33,8 @@
                           :page-id page-id
                           :share-id share-id
                           :object-id object-id
+                          :revn revn
+                          :vern vern
                           :route "objects"}]
               (-> base-uri
                   (u/join "render.html")

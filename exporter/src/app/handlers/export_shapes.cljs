@@ -38,10 +38,12 @@
 (s/def ::type ::us/keyword)
 (s/def ::wait ::us/boolean)
 (s/def ::is-wasm ::us/boolean)
+(s/def ::revn ::us/integer)
+(s/def ::vern ::us/integer)
 
 (s/def ::export
   (s/keys :req-un [::page-id ::file-id ::object-id ::type ::suffix ::scale ::name]
-          :opt-un [::share-id]))
+          :opt-un [::share-id ::revn ::vern]))
 
 (s/def ::exports
   (s/coll-of ::export :kind vector? :min-count 1))
@@ -170,6 +172,8 @@
             {:file-id (:file-id part1)
              :page-id (:page-id part1)
              :share-id (:share-id part1)
+             :revn    (:revn part1)
+             :vern    (:vern part1)
              :name    (:name part1)
              :token   token
              :type    (:type part1)
@@ -186,6 +190,6 @@
                  (map #(assoc % :token token))
                  (assoc-file-name))]
       (->> (sequence xform exports)
-           (d/group-by (juxt :scale :type))
+           (d/group-by (juxt :file-id :page-id :share-id :revn :vern :scale :type))
            (map second)
            (into [] (mapcat process-group))))))

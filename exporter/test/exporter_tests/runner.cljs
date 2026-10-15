@@ -10,6 +10,7 @@
    [cljs.test :as t]
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
+   [exporter-tests.export-revision-test]
    [exporter-tests.renderer-svg-test]
    [exporter-tests.shell-test]
    [goog.object :as gobj]))
@@ -17,7 +18,8 @@
 (enable-console-print!)
 
 (def test-namespaces
-  ['exporter-tests.renderer-svg-test
+  ['exporter-tests.export-revision-test
+   'exporter-tests.renderer-svg-test
    'exporter-tests.shell-test])
 
 (assert (every? find-ns-obj test-namespaces)

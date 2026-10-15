@@ -23,6 +23,18 @@ lockfile. A Dockerfile-specific ignore file excludes source and compiler caches.
 The build requires frontend/target/dist, backend/target/dist and
 exporter/target from the upstream module build scripts.
 
+Native PDF and bitmap requests accept `revn` and `vern` on each `exports`
+entry. The exporter preserves both through grouping and the `render.html`
+query. The native render application reads that exact file revision through
+`get-file-revision` and extracts its page; it never substitutes the latest
+page. Ordinary requests without revision arguments retain upstream behavior.
+Grouping separates files, pages and incarnations so a batch cannot silently
+render one revision using another entry's context. SVG historical export is
+outside this extension.
+
+Regression command from `exporter`: `pnpm run build:test` followed by
+`node target/tests/test.js --focus exporter-tests.export-revision-test`.
+
 ## Scope
 
 Penpot owns the editable file, rendering and normal collaboration. Saitoc's

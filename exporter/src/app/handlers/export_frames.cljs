@@ -27,9 +27,12 @@
 (s/def ::page-id ::us/uuid)
 (s/def ::object-id ::us/uuid)
 (s/def ::is-wasm ::us/boolean)
+(s/def ::revn ::us/integer)
+(s/def ::vern ::us/integer)
 
 (s/def ::export
-  (s/keys :req-un [::file-id ::page-id ::object-id ::name]))
+  (s/keys :req-un [::file-id ::page-id ::object-id ::name]
+          :opt-un [::revn ::vern]))
 
 (s/def ::exports
   (s/every ::export :kind vector? :min-count 1))

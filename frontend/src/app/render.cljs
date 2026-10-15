@@ -126,20 +126,24 @@
                :skip-children skip-children}]]))))))
 
 (defn- fetch-objects-bundle
-  [& {:keys [file-id page-id share-id object-id] :as options}]
+  [& {:keys [file-id page-id share-id object-id revn vern] :as options}]
   (ptk/reify ::fetch-objects-bundle
     ptk/WatchEvent
     (watch [_ state _]
       (let [features (get state :features)]
         (->> (rx/zip
               (repo/cmd! :get-font-variants {:file-id file-id :share-id share-id})
-              (repo/cmd! :get-page {:file-id file-id
-                                    :page-id page-id
-                                    :share-id share-id
-                                    :object-id (if (uuid? object-id)
-                                                 object-id
-                                                 (set object-id))
-                                    :features features}))
+              (if (or (some? revn) (some? vern))
+                (->> (repo/cmd! :get-file-revision
+                               {:id file-id :revn revn :vern vern :features features})
+                     (rx/map #(get-in % [:data :pages-index page-id])))
+                (repo/cmd! :get-page {:file-id file-id
+                                      :page-id page-id
+                                      :share-id share-id
+                                      :object-id (if (uuid? object-id)
+                                                   object-id
+                                                   (set object-id))
+                                      :features features})))
              (rx/tap (fn [[fonts]]
                        (when (seq fonts)
                          (st/emit! (df/fonts-fetched fonts)))))
@@ -154,6 +158,8 @@
    [:page-id ::sm/uuid]
    [:file-id ::sm/uuid]
    [:share-id {:optional true} ::sm/uuid]
+   [:revn {:optional true} :int]
+   [:vern {:optional true} :int]
    [:embed {:optional true} :boolean]
    [:skip-children {:optional true} :boolean]
    [:object-id
@@ -170,9 +176,10 @@
 (defn- render-objects
   [params]
   (try
-    (let [{:keys [file-id page-id embed share-id object-id skip-children wasm scale] :as params}
+    (let [{:keys [file-id page-id embed share-id object-id skip-children wasm scale revn vern] :as params}
           (coerce-render-objects-params params)]
-      (st/emit! (fetch-objects-bundle :file-id file-id :page-id page-id :share-id share-id :object-id object-id))
+      (st/emit! (fetch-objects-bundle :file-id file-id :page-id page-id :share-id share-id
+                                     :object-id object-id :revn revn :vern vern))
       (if (uuid? object-id)
         (mf/html
          [:& object-svg
