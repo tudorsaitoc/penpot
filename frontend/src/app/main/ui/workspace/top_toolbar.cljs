@@ -352,7 +352,8 @@
         toolbar-hidden        (mf/deref toolbar-hidden-ref)
         mcp                   (mf/deref refs/mcp)
 
-        plugins-enabled? (features/active-feature? @st/state "plugins/runtime")
+        plugins-enabled? (and (not (:fable-guided layout))
+                              (features/active-feature? @st/state "plugins/runtime"))
         read-only?       (mf/use-ctx ctx/workspace-read-only?)
 
         mcp-conn-status  (get mcp :connection-status)
@@ -360,7 +361,8 @@
         mcp-enabled?     (get mcp :enabled)
 
         mcp-connected?   (= "connected" mcp-conn-status)
-        mcp-show?        (and (contains? cf/flags :mcp)
+        mcp-show?        (and (not (:fable-guided layout))
+                              (contains? cf/flags :mcp)
                               mcp-enabled?
                               mcp-valid-token?)
 
@@ -468,7 +470,7 @@
                              :on-click on-display-plugins-manager
                              :data-tool "plugins"}]])
 
-        (when *assert*
+        (when (and *assert* (not (:fable-guided layout)))
           [:li {:class (stl/css :toolbar-option)}
            [:> icon-button* {:variant "ghost"
                              :tooltip-placement "bottom"

@@ -14,6 +14,7 @@
    [app.main.data.event :as ev]
    [app.main.data.modal :as modal]
    [app.main.data.plugins :as dp]
+   [app.main.data.workspace.guided :as guided]
    [app.main.refs :as refs]
    [app.main.store :as st]
    [app.main.ui.components.search-bar :refer [search-bar*]]
@@ -29,7 +30,8 @@
    [app.util.i18n :as i18n :refer [tr]]
    [beicon.v2.core :as rx]
    [cuerdas.core :as str]
-   [rumext.v2 :as mf]))
+   [rumext.v2 :as mf]
+   [promesa.core :as p]))
 
 (def ^:private close-icon
   (deprecated-icon/icon-xref :close (stl/css :close-icon)))
@@ -499,3 +501,87 @@
           :type "button"
           :value (tr "workspace.plugins.try-out.try")
           :on-click on-accept-dialog}]]]]]))
+
+;; This experiment has one controlled panel origin, never a manifest query parameter.
+;; Production must replace this build-time constant with its reviewed deployed origin.
+(def guided-manifest-url "http://localhost:3041/manifest.json")
+(def ^:private guided-plugin-id "3acb2d52-dc61-4f27-bac8-aa7bd7f38f25")
+
+(defn guided-manifest-safe?
+  [manifest]
+  (and manifest
+       (every? #{"content:read" "library:read" "allow:downloads"} (:permissions manifest))
+       (= "http://localhost:3041/" (:host manifest))))
+
+(defn guided-export-url
+  [file-id]
+  (case (str file-id)
+    "4e46db1e-3a60-80bf-8008-cb9131813611" "/guided?fixture=goodles&state=export&dock=1"
+    "4e46db1e-3a60-80bf-8008-cb91d039085a" "/guided?fixture=scratch&state=export&dock=1"
+    nil))
+
+(mf/defc guided-panel*
+  [{:keys [file-id]}]
+  (let [status* (mf/use-state :loading)
+        attempt* (mf/use-state 0)
+        attempt @attempt*
+        exporting* (mf/use-state false)
+        export-url (guided-export-url file-id)]
+    (mf/with-effect [file-id attempt]
+      (let [active? (atom true)
+            subscription (atom nil)
+            manifest* (atom nil)
+            extension (guided/create-extension file-id)
+            fail (fn [_] (when @active? (reset! status* :error)))]
+        (reset! status* :loading)
+        (-> (preg/wait-for-runtime)
+            (p/then
+             (fn [_]
+               (when @active?
+                 (reset! subscription
+                         (->> (dp/fetch-manifest guided-manifest-url)
+                              (rx/subs!
+                               (fn [manifest]
+                                 (if (guided-manifest-safe? manifest)
+                                   (let [manifest (assoc manifest :plugin-id guided-plugin-id)]
+                                     (reset! manifest* manifest)
+                                     (preg/register-session-plugin! manifest)
+                                     (-> (dp/start-plugin! manifest #js {:fable extension})
+                                         (p/then (fn [_] (when @active? (reset! status* :ready))))
+                                         (p/catch fail)))
+                                   (fail nil)))
+                               fail))))))
+            (p/catch fail))
+        (fn []
+          (reset! active? false)
+          (when-let [subscription @subscription] (rx/dispose! subscription))
+          (when-let [manifest @manifest*] (dp/close-plugin! manifest))
+          (preg/unregister-session-plugin! guided-plugin-id))))
+    [:aside {:class (stl/css :guided-panel)
+             :aria-label "Deck"
+             :data-testid "guided-panel"}
+     [:header {:class (stl/css :guided-header)}
+      [:strong "Deck"]
+      (when export-url
+        [:button {:type "button"
+                  :aria-pressed @exporting*
+                  :on-click #(swap! exporting* not)}
+         (if @exporting* "Back to editing" "Export")])]
+     [:p {:class (stl/css :guided-desktop-note)}
+      "Editing needs a desktop. You can still export here."]
+     [:div {:id "fable-plugin-dock"
+            :class (stl/css :guided-body)
+            :data-plugin-origin "http://localhost:3041"
+            :hidden @exporting*}]
+     (when @exporting*
+       [:iframe {:class (stl/css :guided-body)
+                 :title "Export your deck and posts"
+                 :src export-url}])
+     (when (and (not @exporting*) (not= :ready @status*))
+       [:div {:class (stl/css :guided-status)
+              :role "status"}
+        (if (= :error @status*)
+          [:* [:p "The deck panel could not open."]
+           [:button {:type "button"
+                     :on-click #(swap! attempt* inc)} "Try again"]]
+          "Opening your deck...")])]))

@@ -52,3 +52,42 @@
   grid-template-columns: px2rem(20) 1fr;
   flex: 1;
 }
+
+// The shell opts in on the other side of the same-origin document seam.
+@view-transition {
+  navigation: auto;
+}
+
+.guided-workspace {
+  grid-template: "viewport guided-panel" 1fr / minmax(0, 1fr) clamp(320px, 25vw, 400px);
+}
+
+.guided-workspace .workspace-content {
+  min-inline-size: 0;
+  view-transition-name: guided-cover;
+}
+
+.guided-workspace .workspace-viewport {
+  min-inline-size: 0;
+}
+
+.guided-workspace :global(.selection-handlers) {
+  transition: opacity 80ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guided-workspace :global(.selection-handlers) {
+    transition: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .guided-workspace {
+    grid-template: "guided-panel" 1fr / minmax(0, 1fr);
+  }
+
+  .guided-workspace .workspace-content {
+    display: none;
+    view-transition-name: none;
+  }
+}

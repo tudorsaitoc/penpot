@@ -226,8 +226,9 @@
 
         disable-events?          (contains? layout :comments)
         comments-mode?           (= drawing-tool :comments)
-        show-comments?           (or comments-mode?
-                                     (contains? layout :display-comments))
+        show-comments?           (and (not (:fable-guided layout))
+                                      (or comments-mode?
+                                          (contains? layout :display-comments)))
         show-cursor-tooltip?     tooltip
         show-draw-area?          drawing-obj
         show-gradient-handlers?  (= (count selected) 1)
@@ -247,7 +248,7 @@
                                       (ctl/grid-layout? objects @hover-top-frame-id))
 
         show-grid-editor?        (and editing-shape (ctl/grid-layout? editing-shape))
-        show-presence?           page-id
+        show-presence?           (and page-id (not (:fable-guided layout)))
         show-prototypes?         (= options-mode :prototype)
         show-selection-handlers? (and (seq selected) (not show-text-editor?))
         show-snap-distance?      (and (contains? layout :dynamic-alignment)

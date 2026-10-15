@@ -13,6 +13,8 @@
    [app.main.data.persistence :as dps]
    [app.main.data.plugins :as dpl]
    [app.main.data.workspace :as dw]
+   [app.main.data.workspace.guided :as guided]
+   [app.main.data.workspace.selection :as selection]
    [app.main.features :as features]
    [app.main.fonts :as fonts]
    [app.main.refs :as refs]
@@ -30,7 +32,7 @@
    [app.main.ui.workspace.libraries]
    [app.main.ui.workspace.nudge]
    [app.main.ui.workspace.palette :refer [palette*]]
-   [app.main.ui.workspace.plugins]
+   [app.main.ui.workspace.plugins :as plugins]
    [app.main.ui.workspace.sidebar :refer [sidebar*]]
    [app.main.ui.workspace.sidebar.history :refer [history-toolbox*]]
    [app.main.ui.workspace.tokens.export]
@@ -87,6 +89,10 @@
            (reset! palete-size size)))
 
         node-ref (use-resize-observer on-resize)]
+    (mf/with-effect [page-id (:fable-guided layout)]
+      (when (:fable-guided layout)
+        (when-let [title-id (guided/initial-title-id (:objects page))]
+          (st/emit! (selection/select-shapes #{title-id})))))
     [:*
      (when (not ^boolean hide-ui?)
        [:> palette* {:layout layout
@@ -116,15 +122,17 @@
          (when (and (or colorpalette? textpalette?) (not hide-ui?))
            @palete-size)}]]]
 
-     (when-not hide-ui?
-       [:> sidebar* {:layout layout
-                     ;; FIXME
-                     :file-id (get file :id)
-                     :page-id page-id
-                     :file file
-                     :selected selected
-                     :section options-mode
-                     :drawing-tool (get drawing :tool)}])]))
+     (if (:fable-guided layout)
+       [:> plugins/guided-panel* {:file-id (:id file)}]
+       (when-not hide-ui?
+         [:> sidebar* {:layout layout
+                       ;; FIXME
+                       :file-id (get file :id)
+                       :page-id page-id
+                       :file file
+                       :selected selected
+                       :section options-mode
+                       :drawing-tool (get drawing :tool)}]))]))
 
 (mf/defc workspace-loader*
   {::mf/private true}
@@ -199,6 +207,12 @@
 
   (let [layout           (mf/deref refs/workspace-layout)
         wglobal          (mf/deref refs/workspace-global)
+        route            (mf/deref refs/route)
+        guided?          (= "fable" (get-in route [:params :query :guided]))
+        layout           (cond-> layout
+                           guided? (conj :fable-guided :hide-palettes))
+        wglobal          (cond-> wglobal
+                           guided? (assoc :options-mode :design))
 
         team-ref         (mf/with-memo [team-id]
                            (make-team-ref team-id))
@@ -267,11 +281,12 @@
         [:> (mf/provider ctx/workspace-read-only?) {:value read-only?}
          [:> modal-container*]
          [:> components-debugger*]
-         [:section {:class (stl/css :workspace)
+         [:section {:class (stl/css-case :workspace true :guided-workspace guided?)
                     :style {:background-color background-color
                             :touch-action "none"
                             :position "relative"}}
-          [:> context-menu*]
+          (when-not guided?
+            [:> context-menu*])
           (when (and file-loaded? page-id)
             [:> workspace-inner*
              {:page-id page-id

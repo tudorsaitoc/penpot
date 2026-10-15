@@ -39,6 +39,8 @@
 
 ;; Stores the installed plugins information
 (defonce ^:private registry (atom {}))
+;; Bundled session entries are removed on workspace unmount, never profile-persisted.
+(defonce ^:private session-registry (atom {}))
 
 (defn plugins-list
   "Retrieves the plugin data as an ordered list of plugin elements"
@@ -48,7 +50,17 @@
 
 (defn get-plugin
   [id]
-  (dm/get-in @registry [:data id]))
+  (or (get @session-registry id)
+      (dm/get-in @registry [:data id])))
+
+(defn register-session-plugin!
+  "Registers a bundled session plugin without changing installed profile plugins."
+  [plugin]
+  (swap! session-registry assoc (:plugin-id plugin) plugin))
+
+(defn unregister-session-plugin!
+  [plugin-id]
+  (swap! session-registry dissoc plugin-id))
 
 (defn parse-manifest
   "Read the manifest.json defined by the plugins definition and transforms it into an
@@ -152,7 +164,7 @@
   [plugin-id permission]
   (or (= plugin-id "00000000-0000-0000-0000-000000000000")
       (= plugin-id mcp-plugin-id)
-      (let [{:keys [permissions]} (dm/get-in @registry [:data plugin-id])]
+      (let [{:keys [permissions]} (get-plugin plugin-id)]
         (contains? permissions permission))))
 
 (defn get-plugin-data

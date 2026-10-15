@@ -14,6 +14,10 @@ export function createModal(
   allowClipboardWrite?: boolean,
 ) {
   const modal = document.createElement('plugin-modal') as PluginModalElement;
+  // Only a native workspace dock can opt its controlled panel into docking.
+  const dock = document.getElementById('fable-plugin-dock');
+  const docked = dock?.dataset['pluginOrigin'] === new URL(url).origin;
+  if (docked) modal.setAttribute('docked', '');
 
   modal.setTheme(theme);
 
@@ -54,7 +58,7 @@ export function createModal(
     modal.setAttribute('allow-clipboard-write', 'true');
   }
 
-  document.body.appendChild(modal);
+  (docked ? dock! : document.body).appendChild(modal);
 
   return modal;
 }
@@ -64,6 +68,12 @@ export function resizeModal(
   width: number = 335,
   height: number = 590,
 ) {
+  if (modal.hasAttribute('docked')) {
+    return {
+      width: modal.parentElement?.clientWidth ?? width,
+      height: modal.parentElement?.clientHeight ?? height,
+    };
+  }
   const minPluginWidth = 200;
   const minPluginHeight = 200;
 

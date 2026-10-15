@@ -94,6 +94,7 @@ export class PluginModalElement extends HTMLElement {
 
     const closeButton = document.createElement('button');
     closeButton.setAttribute('type', 'button');
+    closeButton.setAttribute('aria-label', 'Close plugin');
     closeButton.innerHTML = `<div class="close">${closeSvg}</div>`;
     closeButton.addEventListener('click', () => {
       if (!this.shadowRoot) {
@@ -112,6 +113,7 @@ export class PluginModalElement extends HTMLElement {
 
     const iframe = document.createElement('iframe');
     iframe.src = iframeSrc;
+    iframe.title = title;
 
     const allowList: string[] = [];
     if (allowClipboardRead) allowList.push('clipboard-read');
@@ -142,21 +144,23 @@ export class PluginModalElement extends HTMLElement {
     });
 
     // move modal to the top
-    this.#dragEvents = dragHandler(
-      header,
-      this.wrapper,
-      () => {
-        this.calculateZIndex();
-      },
-      {
-        start: () => {
-          this.wrapper.classList.add('is-dragging');
+    if (!this.hasAttribute('docked')) {
+      this.#dragEvents = dragHandler(
+        header,
+        this.wrapper,
+        () => {
+          this.calculateZIndex();
         },
-        end: () => {
-          this.wrapper.classList.remove('is-dragging');
+        {
+          start: () => {
+            this.wrapper.classList.add('is-dragging');
+          },
+          end: () => {
+            this.wrapper.classList.remove('is-dragging');
+          },
         },
-      },
-    );
+      );
+    }
 
     this.addEventListener('message', (e: Event) => {
       if (!iframe.contentWindow) {

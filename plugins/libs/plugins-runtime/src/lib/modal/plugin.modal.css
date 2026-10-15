@@ -106,3 +106,34 @@ iframe {
   inline-size: 100%;
   block-size: 100%;
 }
+
+:host([docked]) {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+:host([docked]) .wrapper {
+  position: relative;
+  inset: auto;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  max-inline-size: none !important;
+  max-block-size: none !important;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  resize: none;
+  transform: none !important;
+}
+
+:host([docked]) .wrapper::after,
+:host([docked]) .header {
+  display: none;
+}
+
+:host([docked]) .inner {
+  padding: 0;
+}
