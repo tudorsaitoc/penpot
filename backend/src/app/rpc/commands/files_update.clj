@@ -269,6 +269,7 @@
                    :deleted-at deleted-at
                    :file-id (:id file)
                    :revn (:revn file)
+                   :vern (:vern file)
                    :version (:version file)
                    :features (into-array (:features file))
                    :changes (blob/encode changes)}
@@ -280,15 +281,18 @@
         (invalidate-caches! cfg file))
 
       ;; Send asynchronous notifications
-      (send-notifications! cfg params file)
+      (when-not (::defer-notifications? cfg)
+        (send-notifications! cfg params file))
 
-      (with-meta {:revn revn :lagged (get-lagged-changes conn params)}
-        {::audit/replace-props
-         {:id         (:id file)
-          :name       (:name file)
-          :features   (:features file)
-          :project-id (:project-id file)
-          :team-id    (:team-id file)}}))))
+      (cond-> (with-meta {:revn revn :lagged (get-lagged-changes conn params)}
+                {::audit/replace-props
+                 {:id         (:id file)
+                  :name       (:name file)
+                  :features   (:features file)
+                  :project-id (:project-id file)
+                  :team-id    (:team-id file)}})
+        (::defer-notifications? cfg)
+        (rph/with-defer #(send-notifications! cfg params file))))))
 
 (defn get-file
   "Get not-decoded file, only decodes the features set."

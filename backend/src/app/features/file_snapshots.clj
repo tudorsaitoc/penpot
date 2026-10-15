@@ -34,6 +34,7 @@
           c.created_by,
           c.locked_by,
           c.revn,
+          c.vern,
           c.features,
           c.migrations,
           c.version,
@@ -173,6 +174,7 @@
   [:map {:title "Snapshot"}
    [:id ::sm/uuid]
    [:revn [::sm/int {:min 0}]]
+   [:vern [::sm/int {:min 0}]]
    [:version [::sm/int {:min 0}]]
    [:features ::cfeat/features]
    [:migrations [::sm/set ::sm/text]]
@@ -240,6 +242,7 @@
         snapshot
         (cond-> {:id snapshot-id
                  :revn (:revn file)
+                 :vern (:vern file)
                  :version (:version file)
                  :file-id (:id file)
                  :features (:features file)

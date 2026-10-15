@@ -394,6 +394,7 @@
           'app.rpc.commands.files-create
           'app.rpc.commands.files-share
           'app.rpc.commands.files-update
+          'app.rpc.commands.files-actions
           'app.rpc.commands.files-snapshot
           'app.rpc.commands.files-thumbnails
           'app.rpc.commands.ldap

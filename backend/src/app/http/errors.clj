@@ -101,7 +101,8 @@
                            (dissoc ::s/problems ::s/value ::s/spec ::sm/explain)
                            (cond-> explain (assoc :explain explain)))})
 
-      (= code :vern-conflict)
+      (or (= code :vern-conflict)
+          (and (= code :revn-conflict) (= :approved-action (:source data))))
       {::yres/status 409 ;; 409 - Conflict
        ::yres/body data}
 
