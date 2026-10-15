@@ -158,8 +158,8 @@
    [:page-id ::sm/uuid]
    [:file-id ::sm/uuid]
    [:share-id {:optional true} ::sm/uuid]
-   [:revn {:optional true} :int]
-   [:vern {:optional true} :int]
+   [:revn {:optional true} ::sm/int]
+   [:vern {:optional true} ::sm/int]
    [:embed {:optional true} :boolean]
    [:skip-children {:optional true} :boolean]
    [:object-id
