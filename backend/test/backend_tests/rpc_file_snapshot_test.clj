@@ -226,11 +226,15 @@
         file (th/create-file* 1 {:profile-id (:id profile)
                                  :project-id (:default-project-id profile)})
         page-id (get-in file [:data :pages 0])
-        original-name (get-in file [:data :pages-index page-id :name])
+        before (th/command! {::th/type :get-file
+                             ::rpc/profile-id (:id profile)
+                             :id (:id file)})
+        original-name (get-in before [:result :data :pages-index page-id :name])
         created (th/command! {::th/type :create-file-snapshot
                               ::rpc/profile-id (:id profile)
                               :file-id (:id file)})
         snapshot (:result created)]
+    (t/is (nil? (:error before)))
     (t/is (nil? (:error created)))
     (t/is (uuid? (:id snapshot)))
     (t/is (string? (:label snapshot)))
