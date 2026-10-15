@@ -31,6 +31,9 @@
    [app.util.cache :as cache]
    [app.util.inet :as inet]
    [app.util.json :as json]
+   [buddy.core.codecs :as bc]
+   [buddy.core.hash :as bh]
+   [buddy.core.nonce :as bn]
    [buddy.sign.jwk :as jwk]
    [buddy.sign.jwt :as jwt]
    [clojure.set :as set]
@@ -70,7 +73,8 @@
                 (assoc :auth-uri  auth-uri)
                 (assoc :user-uri  user-uri)
                 (assoc :jwks-uri jwks-uri)
-                (assoc :logout-uri logout-uri)))
+                (assoc :logout-uri logout-uri)
+                (assoc :pkce? (boolean (some #{"S256"} (:code_challenge_methods_supported data))))))
 
           (raise-invalid-sso-config
            :hint "unable to discover OIDC configuration"
@@ -459,16 +463,31 @@
     (str (assoc public :path "/api/auth/oidc/callback"))))
 
 (defn build-auth-redirect-uri
-  [provider token]
+  [provider token code-verifier]
   (let [params {:client_id (:client-id provider)
                 :redirect_uri (build-redirect-uri)
                 :response_type "code"
                 :state token
                 :scope (str/join " " (:scopes provider []))}
+        params (cond-> params
+                 code-verifier
+                 (assoc :code_challenge_method "S256"
+                        :code_challenge (-> code-verifier bh/sha256 (bc/bytes->b64-str true))))
         query  (u/map->query-string params)]
     (-> (u/uri (:auth-uri provider))
         (assoc :query query)
         (str))))
+
+(defn- build-state-auth-redirect-uri
+  "Keep the PKCE verifier inside the authenticated-encrypted, expiring state.
+  The authorization server still owns single-use authorization-code enforcement."
+  [cfg provider claims]
+  (let [code-verifier (when (:pkce? provider)
+                        (-> (bn/random-bytes 32)
+                            (bc/bytes->b64-str true)))
+        state         (tokens/generate cfg (cond-> (d/without-nils claims)
+                                            code-verifier (assoc :code-verifier code-verifier)))]
+    (build-auth-redirect-uri provider state code-verifier)))
 
 (defn- qualify-prop-key
   [provider k]
@@ -482,12 +501,14 @@
              props))
 
 (defn- fetch-access-token
-  [cfg provider code]
+  [cfg provider code state]
   (let [params {:client_id (:client-id provider)
                 :client_secret (:client-secret provider)
                 :code code
                 :grant_type "authorization_code"
                 :redirect_uri (build-redirect-uri)}
+        params (cond-> params
+                 (:code-verifier state) (assoc :code_verifier (:code-verifier state)))
         req    {:method :post
                 :headers {"content-type" "application/x-www-form-urlencoded"
                           "accept" "application/json"}
@@ -612,7 +633,7 @@
 
 (defn- get-info
   [cfg provider state code]
-  (let [tdata  (fetch-access-token cfg provider code)
+  (let [tdata  (fetch-access-token cfg provider code state)
         claims (get-id-token-claims provider tdata)
 
         info   (case (select-user-info-source (get provider :user-info-source))
@@ -929,13 +950,13 @@
        :hint "missing issuer"
        :organization-id organization-id))
     (try
-      (let [oidc-provider (or provider (prepare-organization-sso-provider cfg sso))
-            state-token   (tokens/generate cfg {:iss             "oidc"
-                                                :dest-url        dest-url
-                                                :organization-id organization-id
-                                                :issuer          issuer
-                                                :exp             (ct/in-future "4h")})]
-        (build-auth-redirect-uri oidc-provider state-token))
+      (let [oidc-provider (or provider (prepare-organization-sso-provider cfg sso))]
+        (build-state-auth-redirect-uri cfg oidc-provider
+                                       {:iss             "oidc"
+                                        :dest-url        dest-url
+                                        :organization-id organization-id
+                                        :issuer          issuer
+                                        :exp             (ct/in-future "4h")}))
       (catch Throwable cause
         (if (and (ex/error? cause)
                  (= :invalid-sso-config (:code (ex-data cause))))
@@ -1019,8 +1040,7 @@
                   :external-session-id esid
                   :props props
                   :exp (ct/in-future "4h")}
-        state  (tokens/generate cfg (d/without-nils params))
-        uri    (build-auth-redirect-uri provider state)]
+        uri    (build-state-auth-redirect-uri cfg provider params)]
 
     {::yres/status 200
      ::yres/body {:redirect-uri uri}}))
