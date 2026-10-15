@@ -1,0 +1,17 @@
+# Keep compiler caches and source dependencies out of the image context.
+**
+!frontend/
+!frontend/target/
+!frontend/target/dist/
+!frontend/target/dist/**
+!backend/
+!backend/target/
+!backend/target/dist/
+!backend/target/dist/**
+!exporter/
+!exporter/target/
+!exporter/target/**
+!docker/
+!docker/images/
+!docker/images/files/
+!docker/images/files/config.js

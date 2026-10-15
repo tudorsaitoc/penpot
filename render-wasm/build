@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-EMSDK_QUIET=1 . /opt/emsdk/emsdk_env.sh
+# Container builds use /opt/emsdk; native builds may provide emcc on PATH.
+if [ -r "${EMSDK:-/opt/emsdk}/emsdk_env.sh" ]; then
+    EMSDK_QUIET=1 . "${EMSDK:-/opt/emsdk}/emsdk_env.sh"
+fi
 
 _SCRIPT_DIR=$(dirname $0);
 pushd $_SCRIPT_DIR;

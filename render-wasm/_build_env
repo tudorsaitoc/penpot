@@ -47,7 +47,7 @@ export EMCC_CFLAGS="--no-entry \
     -sFILESYSTEM=0 \
     -sEXPORT_ES6=1";
 
-export EM_CACHE="/tmp/emsdk_cache";
+export EM_CACHE="${EM_CACHE:-/tmp/emsdk_cache}";
 
 export CARGO_PARAMS="${@:2}";
 

@@ -11,6 +11,18 @@ The workspace and dashboard repository links point to this source branch.
 The dashboard changelog link opens these patch notes. Upstream copyright
 and MPL-2.0 notices remain in covered source files.
 
+`render-wasm/build` accepts a native Emscripten installation on PATH, or an
+`EMSDK` directory, without requiring the container-only `/opt/emsdk` path.
+`EM_CACHE` can point to a bounded task cache.
+
+`docker/images/Dockerfile.saitoc` packages locally compiled frontend, backend
+and exporter bundles. Its runtime bases are immutable upstream 2.18.3 image
+digests. The frontend's upstream application files are removed before our
+bundle is installed; exporter runtime dependencies use the unchanged pinned
+lockfile. A Dockerfile-specific ignore file excludes source and compiler caches.
+The build requires frontend/target/dist, backend/target/dist and
+exporter/target from the upstream module build scripts.
+
 ## Scope
 
 Penpot owns the editable file, rendering and normal collaboration. Saitoc's

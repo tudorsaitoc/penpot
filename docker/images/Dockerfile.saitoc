@@ -1,0 +1,30 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Runtime dependencies are pinned upstream 2.18.3 images. Application
+# bundles below must be compiled from this checkout, never copied from them.
+# Artifact bound: one local tag per target, retain only the deployed build.
+FROM penpotapp/frontend@sha256:bb8abe27d53de84c95597f2c02c0e702b2779971fb0703e543f9ecf183e999f6 AS frontend
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/tudorsaitoc/penpot" \
+      org.opencontainers.image.revision=$SOURCE_REVISION \
+      org.opencontainers.image.version="2.18.3-saitoc"
+RUN rm -rf /var/www/app/*
+COPY --chown=1001:0 frontend/target/dist/ /var/www/app/
+COPY --chown=1001:0 docker/images/files/config.js /var/www/app/js/config.js
+
+FROM penpotapp/backend@sha256:2df1b3440d2a82cc3571db211b4ffdfa2b89ccc910759e8d5e9387fb62971b5c AS backend
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/tudorsaitoc/penpot" \
+      org.opencontainers.image.revision=$SOURCE_REVISION \
+      org.opencontainers.image.version="2.18.3-saitoc"
+COPY --chown=1001:1001 backend/target/dist/ /opt/penpot/backend/
+
+FROM penpotapp/exporter@sha256:418232d6ca3120b1c2bfde298a56a05a1f41f567cd8494deac3fe7fbc186cfbd AS exporter
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/tudorsaitoc/penpot" \
+      org.opencontainers.image.revision=$SOURCE_REVISION \
+      org.opencontainers.image.version="2.18.3-saitoc"
+# The unchanged pinned lockfile matches the installed runtime dependencies.
+COPY --chown=1001:1001 exporter/target/ /opt/penpot/exporter/
