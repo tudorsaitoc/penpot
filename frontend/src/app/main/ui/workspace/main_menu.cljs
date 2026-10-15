@@ -98,7 +98,7 @@
          (fn []
            (st/emit! (ev/event {::ev/name "explore-github-repository-click"
                                 ::ev/origin "workspace:menu"}))
-           (dom/open-new-window "https://github.com/penpot/penpot")))
+           (dom/open-new-window "https://github.com/tudorsaitoc/penpot/tree/saitoc-2.18.3")))
 
         nav-to-terms
         (mf/use-fn

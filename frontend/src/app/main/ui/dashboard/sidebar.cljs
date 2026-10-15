@@ -1243,7 +1243,7 @@
                         :on-pointer-leave on-pointer-leave}
 
      [:> dropdown-menu-item* {:class (stl/css :submenu-item)
-                              :data-url "https://github.com/penpot/penpot"
+                              :data-url "https://github.com/tudorsaitoc/penpot/tree/saitoc-2.18.3"
                               :on-click handle-click-url
                               :data-eventname "explore-github-repository-click"}
       (tr "labels.github-repo")]
@@ -1288,7 +1288,7 @@
       (tr "labels.version-notes" (:base version))]
 
      [:> dropdown-menu-item* {:class (stl/css :submenu-item)
-                              :data-url "https://github.com/penpot/penpot/blob/develop/CHANGES.md"
+                              :data-url "https://github.com/tudorsaitoc/penpot/blob/saitoc-2.18.3/FORK.md"
                               :on-click handle-click-url
                               :data-eventname "explore-changelog-click"}
       (tr "labels.penpot-changelog")]
