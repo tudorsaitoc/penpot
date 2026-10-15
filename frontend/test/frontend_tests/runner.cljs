@@ -119,6 +119,7 @@
    [frontend-tests.tokens.style-dictionary-test]
    [frontend-tests.tokens.token-errors-test]
    [frontend-tests.tokens.workspace-tokens-remap-test]
+   [frontend-tests.ui.assets-components-test]
    [frontend-tests.ui.check-updates-test]
    [frontend-tests.ui.color-token-position-test]
    [frontend-tests.ui.colorpicker-token-set-order-test]
@@ -285,6 +286,7 @@
    'frontend-tests.tokens.token-errors-test
    'frontend-tests.tokens.logic.tokens-status-test
    'frontend-tests.tokens.workspace-tokens-remap-test
+   'frontend-tests.ui.assets-components-test
    'frontend-tests.ui.check-updates-test
    'frontend-tests.ui.color-token-position-test
    'frontend-tests.ui.colorpicker-token-set-order-test
